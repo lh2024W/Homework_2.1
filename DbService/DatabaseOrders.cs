@@ -1,22 +1,33 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 
 namespace DbService
 {
     public class DatabaseOrders
     {
-        public void EnsurePopulate()
+        DbContextOptions<ApplicationContext> options;
+        public void EnsurePopulated()
+        {
+
+            var builder = new ConfigurationBuilder();
+            // установка пути к текущему каталогу
+            builder.SetBasePath(Directory.GetCurrentDirectory());
+            // получаем конфигурацию из файла appsettings.json
+            builder.AddJsonFile("appsettings.json");
+            // создаем конфигурацию
+            var config = builder.Build();
+            // получаем строку подключения
+            string connectionString = config.GetConnectionString("DefaultConnection");
+
+
+            var optionsBuilder = new DbContextOptionsBuilder<ApplicationContext>();
+            options = optionsBuilder.UseSqlServer(connectionString).Options;
+
+            using (ApplicationContext db = new ApplicationContext(options))
             {
-                using (ApplicationContext db = new ApplicationContext())
-                {
-                    db.Database.EnsureDeleted();
-                    db.Database.EnsureCreated();
-                    List<Product> products = new List<Product>
+                db.Database.EnsureDeleted();
+                db.Database.EnsureCreated();
+                List<Product> products = new List<Product>
                     {
                         new Product
                         {
@@ -49,26 +60,34 @@ namespace DbService
                             Producer = "Украина"
                         }
                     };
-                    db.Products.AddRange(products);
-                    db.SaveChanges();
+                db.Products.AddRange(products);
+                db.SaveChanges();
             }
         }
 
+        public Product? GetProduct(int id)
+        {
+            using (ApplicationContext db = new ApplicationContext(options))
+            {
+                return db.Products.FirstOrDefault(e => e.Id==id);
+
+            }
+        }
         public void AddOrder(Order order)
         {
-            using (ApplicationContext db = new ApplicationContext()
+            using (ApplicationContext db = new ApplicationContext(options))
             {
                 db.Orders.Add(order);
                 db.SaveChanges();
             }
         }
 
-        public void GetOrder(int id)
+        public Order? GetOrder(int id)
         {
-            using (ApplicationContext db = new ApplicationContext()
+            using (ApplicationContext db = new ApplicationContext(options))
             {
-                db.Orders.Include(e => e.OrderLines).ThenInclude(e => e.Product).FirstOrDefault(e => e.Id==id);
-                
+                return db.Orders.Include(e => e.OrderLines).ThenInclude(e => e.Product).FirstOrDefault(e => e.Id==id);
+
             }
         }
     }
